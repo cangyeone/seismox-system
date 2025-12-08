@@ -18,7 +18,7 @@ A runnable prototype for a regional real-time seismic catalog. The stack is stre
    ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
-3. **Open the dashboard** at `http://localhost:8000/` for station management, USGS feed controls, and catalog browsing. API docs remain at `/docs`.
+3. **Open the docs** at `http://localhost:8000/docs` to try the endpoints.
 
 ### Minimal workflow example
 1. **Register a station**
@@ -47,13 +47,6 @@ A runnable prototype for a regional real-time seismic catalog. The stack is stre
    curl http://localhost:8000/events
    curl http://localhost:8000/picks
    ```
-
-4. **(Optional) Start USGS demo feed** from the dashboard (or via API)
-   ```bash
-   curl -X POST http://localhost:8000/usgs/start
-   curl http://localhost:8000/usgs/status
-   ```
-   The feed pulls the official USGS GeoJSON stream every 60s and materializes events + virtual picks for visualization.
 
 ## Design notes
 - **Processing pipeline**: an asyncio worker drains a queue of waveform processing requests. For each waveform it simulates Pg/Sg/Pn/Sn picks, derives an origin time, estimates a simple location around the reporting station, sets a magnitude, and persists everything to SQLite via SQLModel.
