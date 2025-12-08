@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SeismoX 编目控制台</title>
+  <style>
+    :root { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #0f172a; background: #f8fafc; }
+    body { margin: 0; padding: 0; }
+    header { background: linear-gradient(120deg, #0ea5e9, #6366f1); color: white; padding: 16px 24px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    h1, h2, h3 { margin: 0 0 8px 0; }
+    section { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 8px 20px rgba(15,23,42,0.04); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+    label { display: block; font-weight: 600; margin-top: 8px; }
+    input, select { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
+    button { background: #0ea5e9; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: 700; }
+    button.secondary { background: #e2e8f0; color: #0f172a; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    .pill { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font-size: 12px; background: #e0f2fe; color: #0369a1; }
+    .pill.ok { background: #dcfce7; color: #15803d; }
+    .pill.warn { background: #fff7ed; color: #c2410c; }
+    .muted { color: #64748b; font-size: 14px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; background: #f8fafc; }
+    .waveform-box { background: #0b1221; border-radius: 10px; padding: 12px; text-align: center; }
+    .waveform-box img { max-width: 100%; border-radius: 8px; }
+    .live-box { background: #0b1221; border-radius: 10px; padding: 12px; color: #e2e8f0; }
+    .live-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-top: 8px; }
+    .live-panel { background: #020617; padding: 8px; border-radius: 8px; }
+    .live-panel h4 { margin: 4px 0 8px 0; color: #e2e8f0; font-size: 14px; font-weight: 700; }
+    canvas { width: 100%; max-width: 100%; border-radius: 8px; background: #020617; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>SeismoX 编目控制台</h1>
+      <p>实时台站可视化、USGS 数据演示接入、事件与震相浏览。</p>
+      <p class="muted">API 文档: <a style="color:white;font-weight:700;text-decoration:underline;" href="/docs">/docs</a></p>
+      <p class="muted">当前版本同步了最近的后端更新（台站、USGS、IRIS、SeedLink 与处理管线）。</p>
+    </div>
+  </header>
+  <div class="container">
+    <section id="health">
+      <div class="row">
+        <h2>运行状态</h2>
+        <span id="health-pill" class="pill">加载中...</span>
+      </div>
+      <p class="muted" id="health-message"></p>
+      <p class="muted" id="queue-size"></p>
+    </section>
+
+    <section id="sources">
+      <div class="row">
+        <h2>数据源 / 方法管理</h2>
+        <span class="pill">实时处理</span>
+      </div>
+      <div class="grid">
+        <div>
+          <h3>USGS 实时数据流</h3>
+          <p class="muted">拉取官方 GeoJSON 实时地震目录并生成虚拟震相/事件，便于演示界面联动。</p>
+          <div class="row" style="margin-top:8px;">
+            <button id="start-usgs">启动接入</button>
+            <button id="stop-usgs" class="secondary">停止</button>
+          </div>
+          <p class="muted" id="usgs-status"></p>
+        </div>
+        <div>
+          <h3>本地实时处理</h3>
+          <p class="muted">通过 <code>/waveforms/ingest</code> 将实时波形推送到队列，由后台处理器拾取 Pg/Sg/Pn/Sn 并关联事件。</p>
+          <p class="muted">可结合 Kafka/Flink/Spark 生产消费链路替换当前内存队列。</p>
+        </div>
+        <div>
+          <h3>IRIS 实时波形演示</h3>
+          <p class="muted">自动获取 IRIS FDSN 台站列表并从 timeseries 服务抓取最新波形图像，作为实时展示基线。</p>
+          <p class="muted">下方“实时波形”区域会定时刷新选中台站的波形。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="waveforms">
+      <div class="row" style="justify-content: space-between;">
+        <div>
+          <h2>IRIS 实时波形</h2>
+          <p class="muted">选择远程台站并查看最近 5 分钟的波形截图。</p>
+        </div>
+        <div class="row">
+          <label for="iris-station-select" style="margin:0; font-weight:600;">台站</label>
+          <select id="iris-station-select"></select>
+          <button id="wf-refresh" class="secondary">刷新</button>
+        </div>
+      </div>
+      <div class="waveform-box">
+        <img id="wf-img" alt="waveform preview" />
+        <p class="muted" id="wf-meta"></p>
+        <p class="muted" id="wf-error" style="color:#fbbf24;"></p>
+      </div>
+    </section>
+
+    <section id="seedlink">
+      <div class="row" style="justify-content: space-between;">
+        <div>
+          <h2>IRIS SeedLink 实时流</h2>
+          <p class="muted">通过 ObsPy <code>SeedlinkClient</code> 拉取实时样本，写入 MiniSEED 并推入处理队列，同时在下方画布实时渲染。</p>
+        </div>
+        <div class="row">
+          <input id="seed-network" placeholder="网络" value="IU" style="width:90px;" />
+          <input id="seed-station" placeholder="台站" value="ANMO" style="width:90px;" />
+          <input id="seed-location" placeholder="位置" value="00" style="width:80px;" />
+          <input id="seed-channel" placeholder="通道" value="BHZ" style="width:80px;" />
+          <button id="seedlink-start">启动</button>
+          <button id="seedlink-stop" class="secondary">停止</button>
+        </div>
+      </div>
+      <div class="live-box">
+        <p id="seedlink-status"></p>
+        <div id="live-canvases" class="live-grid"></div>
+      </div>
+    </section>
+
+    <section id="stations">
+      <div class="row" style="justify-content: space-between;">
+        <div>
+          <h2>台站管理</h2>
+          <p class="muted">列出数据库中的台站，支持 IRIS 自动导入（IU 网络）。</p>
+        </div>
+        <div class="row">
+          <button id="refresh-iris" class="secondary">导入 IRIS 台站</button>
+          <button id="refresh-stations" class="secondary">刷新列表</button>
+        </div>
+      </div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>代码</th><th>名称</th><th>经纬度</th><th>状态</th></tr>
+          </thead>
+          <tbody id="station-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="events">
+      <div class="row">
+        <h2>地震事件</h2>
+        <span class="pill warn">演示</span>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>事件 ID</th><th>时间</th><th>纬度</th><th>经度</th><th>震级</th></tr></thead>
+          <tbody id="events-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    async function refreshHealth() {
+      const res = await fetch('/health');
+      const data = await res.json();
+      document.getElementById('health-pill').textContent = data.status;
+      document.getElementById('health-pill').className = 'pill ok';
+      document.getElementById('health-message').textContent = data.message;
+      document.getElementById('queue-size').textContent = '处理队列: ' + data.processing_queue_size;
+    }
+
+    async function refreshStations() {
+      const res = await fetch('/stations');
+      const data = await res.json();
+      const tbody = document.getElementById('station-tbody');
+      tbody.innerHTML = '';
+      data.forEach(st => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${st.code}</td><td>${st.name || '-'}</td><td>${st.latitude?.toFixed(3) || 0}, ${st.longitude?.toFixed(3) || 0}</td><td>${st.status}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function refreshEvents() {
+      const res = await fetch('/events');
+      const data = await res.json();
+      const tbody = document.getElementById('events-tbody');
+      tbody.innerHTML = '';
+      data.forEach(ev => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${ev.id}</td><td>${ev.origin_time}</td><td>${ev.latitude?.toFixed(3) || '-'}</td><td>${ev.longitude?.toFixed(3) || '-'}</td><td>${ev.magnitude?.toFixed(1) || '-'}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function refreshUSGS() {
+      const res = await fetch('/usgs/status');
+      const data = await res.json();
+      document.getElementById('usgs-status').textContent = data.running ? `已运行 (事件数: ${data.events})` : '未运行';
+    }
+
+    async function refreshIrisStations() {
+      const res = await fetch('/iris/stations');
+      const data = await res.json();
+      const select = document.getElementById('iris-station-select');
+      select.innerHTML = '';
+      data.stations.forEach((st, idx) => {
+        const opt = document.createElement('option');
+        opt.value = `${st.network}.${st.code}.${st.location}.${st.channel}`;
+        opt.textContent = `${st.code} (${st.name || st.channel})`;
+        if (idx === 0) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    async function refreshWaveform() {
+      const sel = document.getElementById('iris-station-select').value;
+      if (!sel) return;
+      const [network, station, location, channel] = sel.split('.');
+      const res = await fetch(`/iris/waveform?network=${network}&station=${station}&location=${location}&channel=${channel}`);
+      const data = await res.json();
+      const imgEl = document.getElementById('wf-img');
+      imgEl.src = `data:${data.content_type};base64,${data.image_base64}`;
+      document.getElementById('wf-meta').textContent = `${data.network}.${data.station}.${data.channel} 最近 ${data.duration} 秒`;
+      document.getElementById('wf-error').textContent = '';
+    }
+
+    async function refreshSeedlinkStatus() {
+      const res = await fetch('/iris/live/status');
+      const data = await res.json();
+      const statusEl = document.getElementById('seedlink-status');
+      const selector = data.selectors ? ` | 订阅 ${data.selectors}` : '';
+      const chInfo = data.channels && data.channels.length ? ` | 通道: ${data.channels.join(',')}` : '';
+      statusEl.textContent = data.running ? `${data.network}.${data.station}.${data.channel || ''}${selector}${chInfo} 运行中，已接收 ${data.frames} 段，最新 ${data.last_frame || ''}` : '未运行';
+    }
+
+    async function refreshLiveFrame() {
+      try {
+        const res = await fetch('/iris/live/frame');
+        if (!res.ok) return;
+        const data = await res.json();
+        const container = document.getElementById('live-canvases');
+        container.innerHTML = '';
+        const channels = data.channels || [];
+        if (!channels.length) {
+          container.innerHTML = `<div class="muted">${data.message || '暂无实时波形'}</div>`;
+          return;
+        }
+        channels.forEach((ch) => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'live-panel';
+          const title = document.createElement('h4');
+          title.textContent = `${ch.network}.${ch.station}.${ch.channel}`;
+          const canvas = document.createElement('canvas');
+          canvas.width = 360;
+          canvas.height = 180;
+          const ctx = canvas.getContext('2d');
+          const samples = ch.samples || [];
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.strokeStyle = '#67e8f9';
+          ctx.lineWidth = 1.5;
+          if (samples.length) {
+            const min = Math.min(...samples), max = Math.max(...samples);
+            const scale = max - min || 1;
+            ctx.beginPath();
+            samples.forEach((v, i) => {
+              const x = (i / (samples.length - 1)) * canvas.width;
+              const y = canvas.height - ((v - min) / scale) * canvas.height;
+              if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+          }
+          wrapper.appendChild(title);
+          wrapper.appendChild(canvas);
+          container.appendChild(wrapper);
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    document.getElementById('start-usgs').onclick = async () => { await fetch('/usgs/start', { method: 'POST' }); await refreshUSGS(); };
+    document.getElementById('stop-usgs').onclick = async () => { await fetch('/usgs/stop', { method: 'POST' }); await refreshUSGS(); };
+    document.getElementById('refresh-stations').onclick = () => refreshStations();
+    document.getElementById('refresh-iris').onclick = async () => { await fetch('/stations/import/iris', { method: 'POST' }); await refreshStations(); await refreshIrisStations(); };
+    document.getElementById('iris-station-select').onchange = () => refreshWaveform();
+    document.getElementById('wf-refresh').onclick = () => refreshWaveform();
+    document.getElementById('seedlink-start').onclick = async () => {
+      const net = document.getElementById('seed-network').value || 'IU';
+      const sta = document.getElementById('seed-station').value || 'ANMO';
+      const loc = document.getElementById('seed-location').value || '';
+      const cha = document.getElementById('seed-channel').value || '';
+      await fetch(`/iris/live/start?network=${net}&station=${sta}&location=${loc}&channel=${cha}`, { method: 'POST' });
+      await refreshSeedlinkStatus();
+    };
+    document.getElementById('seedlink-stop').onclick = async () => { await fetch('/iris/live/stop', { method: 'POST' }); await refreshSeedlinkStatus(); };
+
+    async function boot() {
+      await refreshHealth();
+      await refreshStations();
+      await refreshIrisStations();
+      await refreshEvents();
+      await refreshWaveform();
+      await refreshUSGS();
+      await refreshSeedlinkStatus();
+      setInterval(() => { refreshHealth(); refreshEvents(); refreshUSGS(); refreshWaveform(); refreshSeedlinkStatus(); refreshLiveFrame(); }, 5000);
+    }
+    boot();
+  </script>
+</body>
+</html>
