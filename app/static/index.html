@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SeismoX 编目控制台</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <style>
     :root { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #0f172a; background: #f8fafc; }
     body { margin: 0; padding: 0; }
@@ -31,6 +33,8 @@
     .live-panel { background: #020617; padding: 8px; border-radius: 8px; }
     .live-panel h4 { margin: 4px 0 8px 0; color: #e2e8f0; font-size: 14px; font-weight: 700; }
     canvas { width: 100%; max-width: 100%; border-radius: 8px; background: #020617; }
+    #event-map { height: 420px; border-radius: 10px; overflow: hidden; }
+    .leaflet-popup-content { font-size: 14px; }
   </style>
 </head>
 <body>
@@ -146,6 +150,7 @@
         <h2>地震事件</h2>
         <span class="pill warn">演示</span>
       </div>
+      <div id="event-map"></div>
       <div class="card">
         <table>
           <thead><tr><th>事件 ID</th><th>时间</th><th>纬度</th><th>经度</th><th>震级</th></tr></thead>
@@ -156,6 +161,9 @@
   </div>
 
   <script>
+    let eventMap;
+    let eventLayer;
+
     async function refreshHealth() {
       const res = await fetch('/health');
       const data = await res.json();
@@ -177,6 +185,36 @@
       });
     }
 
+    function ensureMap() {
+      if (eventMap) return;
+      eventMap = L.map('event-map').setView([20, 0], 2);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 11,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(eventMap);
+      eventLayer = L.layerGroup().addTo(eventMap);
+    }
+
+    function updateEventLayer(events) {
+      ensureMap();
+      eventLayer.clearLayers();
+      if (!events.length) return;
+      events.forEach(ev => {
+        if (ev.latitude == null || ev.longitude == null) return;
+        const marker = L.circleMarker([ev.latitude, ev.longitude], {
+          radius: Math.max(4, (ev.magnitude || 0) + 3),
+          color: '#0ea5e9',
+          fillColor: '#67e8f9',
+          fillOpacity: 0.8,
+          weight: 1
+        });
+        const time = ev.origin_time ? new Date(ev.origin_time).toLocaleString() : '未知时间';
+        const mag = ev.magnitude != null ? ev.magnitude.toFixed(1) : '-';
+        marker.bindPopup(`<strong>事件 ${ev.id}</strong><br/>时间：${time}<br/>震级：${mag}<br/>纬度：${ev.latitude.toFixed(3)}<br/>经度：${ev.longitude.toFixed(3)}`);
+        marker.addTo(eventLayer);
+      });
+    }
+
     async function refreshEvents() {
       const res = await fetch('/events');
       const data = await res.json();
@@ -187,6 +225,7 @@
         tr.innerHTML = `<td>${ev.id}</td><td>${ev.origin_time}</td><td>${ev.latitude?.toFixed(3) || '-'}</td><td>${ev.longitude?.toFixed(3) || '-'}</td><td>${ev.magnitude?.toFixed(1) || '-'}</td>`;
         tbody.appendChild(tr);
       });
+      updateEventLayer(data);
     }
 
     async function refreshUSGS() {

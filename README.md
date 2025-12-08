@@ -8,6 +8,7 @@ A runnable prototype for a regional real-time seismic catalog. The stack is stre
 - Waveform ingestion endpoint that accepts base64 mseed payloads, persists them to local storage, and queues them for processing.
 - Background real-time pipeline that simulates Pg/Sg/Pn/Sn picking, performs simple association, assigns a location/magnitude, and records the picks and events.
 - Event and pick browsing APIs for lightweight web visualization and downstream integration.
+- Leaflet + OpenStreetMap 事件地图：仪表盘会把 `/events` 返回的目录投影到交互式底图上，点击点位查看时间、震级、经纬度。
 - Health endpoint exposing the live processing queue depth.
 - IRIS SeedLink live ingest using ObsPy, saving MiniSEED, feeding the processing queue, and rendering the stream on the dashboard.
 
