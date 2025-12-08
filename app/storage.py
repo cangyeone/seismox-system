@@ -18,13 +18,3 @@ def persist_waveform(station_code: str, payload_base64: str) -> Tuple[str, dt.da
     raw = base64.b64decode(payload_base64.encode())
     file_path.write_bytes(raw)
     return str(file_path), timestamp
-
-
-def persist_waveform_bytes(station_code: str, payload: bytes) -> Tuple[str, dt.datetime]:
-    """Persist raw MiniSEED bytes to disk for a station and return the path and timestamp."""
-
-    timestamp = dt.datetime.utcnow()
-    filename = f"{station_code}_{timestamp.strftime('%Y%m%dT%H%M%S%f')}.mseed"
-    file_path = WAVEFORM_DIR / filename
-    file_path.write_bytes(payload)
-    return str(file_path), timestamp
