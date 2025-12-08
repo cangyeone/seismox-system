@@ -160,7 +160,11 @@ async def _consume_traces() -> None:
             continue
 
         try:
-            await _handle_trace(trace)
+            try:
+                await _handle_trace(trace)
+            except Exception as exc:  # pragma: no cover - keep stream alive despite processing failures
+                logger.exception("Failed to handle trace: %s", exc)
+
             _status["frames"] += 1
             _status["last_frame"] = dt.datetime.utcnow().isoformat()
             # downsample for UI
