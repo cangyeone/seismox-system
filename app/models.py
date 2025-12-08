@@ -1,11 +1,12 @@
 """SQLModel entities used throughout the SeismoX prototype."""
 
-from __future__ import annotations
-
 import datetime as dt
-from typing import Optional
+from typing import List, Optional, TYPE_CHECKING
 
 from sqlmodel import Field, Relationship, SQLModel
+
+if TYPE_CHECKING:  # pragma: no cover - for forward references only
+    from .models import Event, PhasePick, Station, Waveform
 
 
 class StationBase(SQLModel):
@@ -20,9 +21,9 @@ class StationBase(SQLModel):
 
 class Station(StationBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    waveforms: list["Waveform"] = Relationship(back_populates="station")
-    picks: list["PhasePick"] = Relationship(back_populates="station")
-    events: list["Event"] = Relationship(back_populates="preferred_station")
+    waveforms: List["Waveform"] = Relationship(back_populates="station")
+    picks: List["PhasePick"] = Relationship(back_populates="station")
+    events: List["Event"] = Relationship(back_populates="preferred_station")
 
 
 class StationRead(StationBase):
@@ -69,13 +70,13 @@ class EventBase(SQLModel):
 
 class Event(EventBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    picks: list[PhasePick] = Relationship(back_populates="event")
+    picks: List[PhasePick] = Relationship(back_populates="event")
     preferred_station: Optional[Station] = Relationship(back_populates="events")
 
 
 class EventWithPicks(EventBase):
     id: int
-    picks: list[PhasePick]
+    picks: List[PhasePick]
 
 
 class HealthResponse(SQLModel):
