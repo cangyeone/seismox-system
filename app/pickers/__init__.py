@@ -33,8 +33,8 @@ def run_phase_picker(
 ) -> List[Tuple[int, float, float]]:
     """Run the TorchScript picker on a 10s block of **three-component** samples.
 
-    The bundled TorchScript model expects a shape of ``(batch, channels, N)`` with
-    exactly three components. The caller should pre-align channels and supply
+    The bundled TorchScript model expects a shape of ``(N, 3)`` with exactly
+    three components per sample. The caller should pre-align channels and supply
     them as ``[[ch1...], [ch2...], [ch3...]]``. Returns tuples of
     ``(phase_index, sample_index, confidence)``.
     """
@@ -44,13 +44,23 @@ def run_phase_picker(
         return []
 
     data = torch.tensor(samples, dtype=torch.float32)
-    # Accept either (3, N) or (N, 3) and normalize to (1, 3, N)
-    if data.dim() == 2 and data.shape[0] != 3 and data.shape[1] == 3:
+
+    # Normalize to the model's expected shape of (N, 3)
+    # Accept channel-first blocks shaped (3, N) and transpose them.
+    if data.dim() == 2 and data.shape[0] == 3 and data.shape[1] != 3:
         data = data.transpose(0, 1)
-    if data.dim() == 2:
-        data = data.unsqueeze(0)
-    elif data.dim() == 3 and data.shape[1] != 3 and data.shape[2] == 3:
-        data = data.transpose(1, 2)
+
+    # Collapse a singleton batch of (1, 3, N) to (N, 3)
+    if data.dim() == 3 and data.shape[0] == 1 and data.shape[1] == 3:
+        data = data.squeeze(0).transpose(0, 1)
+
+    # If still not time-major, attempt a generic transpose fallback
+    if data.dim() == 2 and data.shape[1] != 3 and data.shape[0] == 3:
+        data = data.transpose(0, 1)
+
+    if data.dim() != 2 or data.shape[1] != 3:
+        logger.warning("Picker input has unexpected shape %s; skipping", tuple(data.shape))
+        return []
 
     with torch.no_grad():
         result = model(data)
