@@ -4,7 +4,6 @@ A runnable prototype for a regional real-time seismic catalog. The stack is stre
 
 ## What is implemented
 - Station management API (create/list/view) with geospatial metadata and status fields.
-- IRIS station auto-discovery/import to seed the catalog without manual typing.
 - Waveform ingestion endpoint that accepts base64 mseed payloads, persists them to local storage, and queues them for processing.
 - Background real-time pipeline that simulates Pg/Sg/Pn/Sn picking, performs simple association, assigns a location/magnitude, and records the picks and events.
 - Event and pick browsing APIs for lightweight web visualization and downstream integration.
@@ -19,7 +18,7 @@ A runnable prototype for a regional real-time seismic catalog. The stack is stre
    ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
-3. **Open the dashboard** at `http://localhost:8000/` for station 管理、USGS/IRIS 数据演示、波形可视化和目录浏览。API docs remain at `/docs`.
+3. **Open the docs** at `http://localhost:8000/docs` to try the endpoints.
 
 ### Minimal workflow example
 1. **Register a station**
@@ -48,18 +47,6 @@ A runnable prototype for a regional real-time seismic catalog. The stack is stre
    curl http://localhost:8000/events
    curl http://localhost:8000/picks
    ```
-
-4. **(Optional) Import IRIS stations & start USGS demo feed** from the dashboard (or via API)
-   ```bash
-   curl -X POST "http://localhost:8000/stations/import/iris?network=IU&limit=8"
-   curl -X POST http://localhost:8000/usgs/start
-   curl http://localhost:8000/usgs/status
-   ```
-   The IRIS helper grabs FDSN station metadata (GeoCSV) and writes it into the local DB; the USGS feed pulls the official GeoJSON stream every 60s and materializes events + virtual picks for visualization.
-
-5. **Preview live waveforms from IRIS**
-   - The dashboard dropdown auto-populates IU network stations via `/iris/stations`.
-   - The “实时波形” card pulls a 5-minute plot via `/iris/waveform` so you can watch remote activity without pushing your own data yet.
 
 ## Design notes
 - **Processing pipeline**: an asyncio worker drains a queue of waveform processing requests. For each waveform it simulates Pg/Sg/Pn/Sn picks, derives an origin time, estimates a simple location around the reporting station, sets a magnitude, and persists everything to SQLite via SQLModel.
