@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import List, Optional
+from typing import Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -20,9 +20,9 @@ class StationBase(SQLModel):
 
 class Station(StationBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    waveforms: List["Waveform"] = Relationship(back_populates="station")
-    picks: List["PhasePick"] = Relationship(back_populates="station")
-    events: List["Event"] = Relationship(back_populates="preferred_station")
+    waveforms: list["Waveform"] = Relationship(back_populates="station")
+    picks: list["PhasePick"] = Relationship(back_populates="station")
+    events: list["Event"] = Relationship(back_populates="preferred_station")
 
 
 class StationRead(StationBase):
@@ -38,7 +38,7 @@ class WaveformBase(SQLModel):
 
 class Waveform(WaveformBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    station: Station = Relationship(back_populates="waveforms")
+    station: Optional[Station] = Relationship(back_populates="waveforms")
 
 
 class PhasePickBase(SQLModel):
@@ -53,7 +53,7 @@ class PhasePickBase(SQLModel):
 
 class PhasePick(PhasePickBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    station: Station = Relationship(back_populates="picks")
+    station: Optional[Station] = Relationship(back_populates="picks")
     event: Optional["Event"] = Relationship(back_populates="picks")
 
 
@@ -69,13 +69,13 @@ class EventBase(SQLModel):
 
 class Event(EventBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    picks: List[PhasePick] = Relationship(back_populates="event")
+    picks: list[PhasePick] = Relationship(back_populates="event")
     preferred_station: Optional[Station] = Relationship(back_populates="events")
 
 
 class EventWithPicks(EventBase):
     id: int
-    picks: List[PhasePick]
+    picks: list[PhasePick]
 
 
 class HealthResponse(SQLModel):
