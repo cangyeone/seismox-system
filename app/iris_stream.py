@@ -9,7 +9,7 @@ import logging
 import threading
 from typing import Any, Dict, Optional
 
-from obspy.clients.seedlink.basic_client import Client as SeedlinkClient
+from obspy.clients.seedlink.easyseedlink import create_client
 from sqlmodel import Session, select
 
 from .database import engine
@@ -23,6 +23,7 @@ _trace_queue: asyncio.Queue = asyncio.Queue()
 _stream_task: Optional[asyncio.Task] = None
 _worker_task: Optional[asyncio.Task] = None
 _stop_event = threading.Event()
+_sl_client = None
 _latest_frame: Optional[Dict[str, Any]] = None
 _status: Dict[str, Any] = {
     "running": False,
@@ -74,6 +75,14 @@ async def stop_live_stream() -> bool:
     _stop_event.set()
     _status["running"] = False
 
+    if _sl_client:
+        try:
+            closer = getattr(_sl_client, "close", None) or getattr(_sl_client, "disconnect", None)
+            if closer:
+                closer()
+        except Exception:  # pragma: no cover - best effort shutdown
+            logger.exception("Failed to close SeedLink client")
+
     if _stream_task:
         try:
             await asyncio.wait_for(_stream_task, timeout=3)
@@ -102,17 +111,28 @@ def get_latest_frame() -> Optional[Dict[str, Any]]:
 def _pump_traces(loop: asyncio.AbstractEventLoop, network: str, station: str, location: str, channel: str) -> None:
     """Run in a background thread, pushing traces into the asyncio queue."""
 
+    global _sl_client
+
+    def _on_trace(trace):
+        if _stop_event.is_set():
+            return
+        asyncio.run_coroutine_threadsafe(_trace_queue.put(trace), loop).result()
+
     try:
-        client = SeedlinkClient("rtserve.iris.washington.edu", port=18000)
-        client.select_stream(network, station, location, channel)
-        for trace in client.iter_traces():
-            if _stop_event.is_set():
-                break
-            asyncio.run_coroutine_threadsafe(_trace_queue.put(trace), loop).result()
+        _sl_client = create_client(server_url="rtserve.iris.washington.edu", on_data=_on_trace)
+        _sl_client.select_stream(network, station, location, channel)
+        _sl_client.run()
     except Exception as exc:  # pragma: no cover - protective logging
         logger.exception("SeedLink streaming failed: %s", exc)
         _status["error"] = str(exc)
     finally:
+        if _sl_client:
+            closer = getattr(_sl_client, "close", None) or getattr(_sl_client, "disconnect", None)
+            if closer:
+                try:
+                    closer()
+                except Exception:  # pragma: no cover - best effort shutdown
+                    logger.exception("Failed to close SeedLink client during teardown")
         _stop_event.set()
         _status["running"] = False
 
