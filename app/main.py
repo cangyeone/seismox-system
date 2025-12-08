@@ -6,7 +6,7 @@ import asyncio
 from pathlib import Path
 from typing import List
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -599,8 +599,8 @@ DASHBOARD_HTML = """
 """
 
 
-@app.get("/", response_class=HTMLResponse)
-async def dashboard() -> FileResponse | HTMLResponse:
+@app.get("/", response_class=HTMLResponse, response_model=None)
+async def dashboard() -> Response:
     """Serve the interactive dashboard, falling back to inline HTML if assets are missing."""
 
     index_path = STATIC_DIR / "index.html"

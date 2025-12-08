@@ -9,6 +9,7 @@ A runnable prototype for a regional real-time seismic catalog. The stack is stre
 - Background real-time pipeline that simulates Pg/Sg/Pn/Sn picking, performs simple association, assigns a location/magnitude, and records the picks and events.
 - Event and pick browsing APIs for lightweight web visualization and downstream integration.
 - Health endpoint exposing the live processing queue depth.
+- IRIS SeedLink live ingest using ObsPy, saving MiniSEED, feeding the processing queue, and rendering the stream on the dashboard.
 
 ## Quickstart
 1. **Install dependencies**
