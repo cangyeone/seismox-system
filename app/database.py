@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Database helpers for the lightweight SeismoX demo service."""
+
 from pathlib import Path
 
 from sqlmodel import SQLModel, create_engine

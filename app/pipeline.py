@@ -1,3 +1,5 @@
+"""Simplified processing pipeline that simulates picking and association."""
+
 from __future__ import annotations
 
 import asyncio

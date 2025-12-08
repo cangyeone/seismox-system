@@ -1,3 +1,5 @@
+"""USGS GeoJSON polling helpers for the SeismoX dashboard demo."""
+
 from __future__ import annotations
 
 import asyncio

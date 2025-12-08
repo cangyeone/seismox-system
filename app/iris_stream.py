@@ -1,3 +1,5 @@
+"""SeedLink live ingest and visualization bridge for the dashboard."""
+
 from __future__ import annotations
 
 import asyncio

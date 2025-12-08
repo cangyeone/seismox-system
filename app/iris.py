@@ -1,3 +1,5 @@
+"""IRIS FDSN/plot helpers used by the dashboard and APIs."""
+
 from __future__ import annotations
 
 import asyncio
