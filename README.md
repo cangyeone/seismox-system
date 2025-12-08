@@ -68,7 +68,7 @@ A runnable prototype for a regional real-time seismic catalog. The stack is stre
      curl -X POST "http://localhost:8000/iris/live/start?network=IU&station=ANMO&location=00&channel=BHZ"
      curl http://localhost:8000/iris/live/status
      ```
-   - The server uses `obspy.clients.seedlink.easyseedlink.create_client` with the on-data callback to read the stream, writes each trace as MiniSEED under `app/data/waveforms/`, registers stations automatically if they don’t exist, enqueues processing, and renders a live canvas trace on the dashboard. Stop with `POST /iris/live/stop`.
+   - The server uses `obspy.clients.seedlink.easyseedlink.create_client` with the on-data callback to read the stream, writes each trace as MiniSEED under `app/data/waveforms/`, registers stations automatically if they don’t exist, enqueues processing, and renders **三分量**实时波形（每个通道各一个小画布）在仪表盘中。Stop with `POST /iris/live/stop`.
 
 7. **Use the bundled TorchScript拾取器**
    - 将模型文件放在 `app/pickers/rnn.origdiff.pnsn.jit` 路径（`torch.jit.load` 可直接加载）。

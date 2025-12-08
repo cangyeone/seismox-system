@@ -27,6 +27,9 @@
     .waveform-box { background: #0b1221; border-radius: 10px; padding: 12px; text-align: center; }
     .waveform-box img { max-width: 100%; border-radius: 8px; }
     .live-box { background: #0b1221; border-radius: 10px; padding: 12px; color: #e2e8f0; }
+    .live-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-top: 8px; }
+    .live-panel { background: #020617; padding: 8px; border-radius: 8px; }
+    .live-panel h4 { margin: 4px 0 8px 0; color: #e2e8f0; font-size: 14px; font-weight: 700; }
     canvas { width: 100%; max-width: 100%; border-radius: 8px; background: #020617; }
   </style>
 </head>
@@ -113,7 +116,7 @@
       </div>
       <div class="live-box">
         <p id="seedlink-status"></p>
-        <canvas id="live-canvas" width="900" height="300"></canvas>
+        <div id="live-canvases" class="live-grid"></div>
       </div>
     </section>
 
@@ -223,7 +226,8 @@
       const data = await res.json();
       const statusEl = document.getElementById('seedlink-status');
       const selector = data.selectors ? ` | 订阅 ${data.selectors}` : '';
-      statusEl.textContent = data.running ? `${data.network}.${data.station}.${data.channel || ''}${selector} 运行中，已接收 ${data.frames} 段，最新 ${data.last_frame || ''}` : '未运行';
+      const chInfo = data.channels && data.channels.length ? ` | 通道: ${data.channels.join(',')}` : '';
+      statusEl.textContent = data.running ? `${data.network}.${data.station}.${data.channel || ''}${selector}${chInfo} 运行中，已接收 ${data.frames} 段，最新 ${data.last_frame || ''}` : '未运行';
     }
 
     async function refreshLiveFrame() {
@@ -231,22 +235,41 @@
         const res = await fetch('/iris/live/frame');
         if (!res.ok) return;
         const data = await res.json();
-        const canvas = document.getElementById('live-canvas');
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.strokeStyle = '#67e8f9';
-        ctx.lineWidth = 1.5;
-        const samples = data.samples;
-        if (!samples || samples.length === 0) return;
-        const min = Math.min(...samples), max = Math.max(...samples);
-        const scale = max - min || 1;
-        ctx.beginPath();
-        samples.forEach((v, i) => {
-          const x = (i / (samples.length - 1)) * canvas.width;
-          const y = canvas.height - ((v - min) / scale) * canvas.height;
-          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        const container = document.getElementById('live-canvases');
+        container.innerHTML = '';
+        const channels = data.channels || [];
+        if (!channels.length) {
+          container.innerHTML = `<div class="muted">${data.message || '暂无实时波形'}</div>`;
+          return;
+        }
+        channels.forEach((ch) => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'live-panel';
+          const title = document.createElement('h4');
+          title.textContent = `${ch.network}.${ch.station}.${ch.channel}`;
+          const canvas = document.createElement('canvas');
+          canvas.width = 360;
+          canvas.height = 180;
+          const ctx = canvas.getContext('2d');
+          const samples = ch.samples || [];
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.strokeStyle = '#67e8f9';
+          ctx.lineWidth = 1.5;
+          if (samples.length) {
+            const min = Math.min(...samples), max = Math.max(...samples);
+            const scale = max - min || 1;
+            ctx.beginPath();
+            samples.forEach((v, i) => {
+              const x = (i / (samples.length - 1)) * canvas.width;
+              const y = canvas.height - ((v - min) / scale) * canvas.height;
+              if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+          }
+          wrapper.appendChild(title);
+          wrapper.appendChild(canvas);
+          container.appendChild(wrapper);
         });
-        ctx.stroke();
       } catch (err) {
         console.error(err);
       }

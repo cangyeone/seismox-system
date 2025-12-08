@@ -24,7 +24,7 @@ _stream_task: Optional[asyncio.Task] = None
 _worker_task: Optional[asyncio.Task] = None
 _stop_event = threading.Event()
 _sl_client = None
-_latest_frame: Optional[Dict[str, Any]] = None
+_latest_frames: Dict[str, Dict[str, Any]] = {}
 _status: Dict[str, Any] = {
     "running": False,
     "frames": 0,
@@ -48,6 +48,7 @@ async def start_live_stream(
 
     loop = asyncio.get_running_loop()
     _stop_event.clear()
+    _latest_frames.clear()
     _status.update(
         {
             "running": True,
@@ -74,6 +75,7 @@ async def stop_live_stream() -> bool:
 
     _stop_event.set()
     _status["running"] = False
+    _latest_frames.clear()
 
     if _sl_client:
         try:
@@ -101,11 +103,15 @@ async def stop_live_stream() -> bool:
 
 
 def get_live_status() -> Dict[str, Any]:
-    return dict(_status)
+    status = dict(_status)
+    status["channels"] = list(_latest_frames.keys())
+    return status
 
 
 def get_latest_frame() -> Optional[Dict[str, Any]]:
-    return _latest_frame
+    if not _latest_frames:
+        return None
+    return {"channels": list(_latest_frames.values())}
 
 
 def _pump_traces(loop: asyncio.AbstractEventLoop, network: str, station: str, location: str, channel: str) -> None:
@@ -146,7 +152,7 @@ def _pump_traces(loop: asyncio.AbstractEventLoop, network: str, station: str, lo
 
 
 async def _consume_traces() -> None:
-    global _latest_frame
+    global _latest_frames
     while not _stop_event.is_set():
         try:
             trace = await asyncio.wait_for(_trace_queue.get(), timeout=1.0)
@@ -161,7 +167,7 @@ async def _consume_traces() -> None:
             samples = trace.data.tolist()
             step = max(1, len(samples) // 800)
             reduced = samples[::step]
-            _latest_frame = {
+            _latest_frames[str(trace.stats.channel)] = {
                 "network": trace.stats.network,
                 "station": trace.stats.station,
                 "channel": trace.stats.channel,
