@@ -178,7 +178,7 @@ async def iris_waveform(
 
 @app.post("/iris/live/start")
 async def iris_live_start(
-    network: str = "IU", station: str = "ANMO", location: str = "00", channel: str = "BHZ"
+    network: str = "IU", station: str = "ANMO", location: str = "00", channel: str = ""
 ) -> dict:
     started = await start_live_stream(network=network, station=station, location=location, channel=channel)
     status = get_live_status()
@@ -203,7 +203,7 @@ async def iris_live_status() -> dict:
 async def iris_live_frame() -> dict:
     frame = get_latest_frame()
     if not frame:
-        raise HTTPException(status_code=404, detail="暂无实时波形")
+        return {"message": "暂无实时波形", "running": get_live_status().get("running", False)}
     return frame
 
 

@@ -38,7 +38,7 @@ _status: Dict[str, Any] = {
 
 
 async def start_live_stream(
-    network: str = "IU", station: str = "ANMO", location: str = "00", channel: str = "BHZ"
+    network: str = "IU", station: str = "ANMO", location: str = "00", channel: str = ""
 ) -> bool:
     """Start a SeedLink streaming task and a consumer that feeds the processing pipeline."""
 
@@ -121,12 +121,13 @@ def _pump_traces(loop: asyncio.AbstractEventLoop, network: str, station: str, lo
     try:
         _sl_client = create_client(server_url="rtserve.iris.washington.edu", on_data=_on_trace)
         selectors = None
-        if location and channel:
+        if channel and location:
             selectors = f"{location}{channel}"
         elif channel:
             selectors = channel
         elif location:
             selectors = location
+        _status["selectors"] = selectors
         _sl_client.select_stream(network, station, selectors)
         _sl_client.run()
     except Exception as exc:  # pragma: no cover - protective logging
