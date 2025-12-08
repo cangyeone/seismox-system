@@ -14,7 +14,7 @@ from sqlmodel import Session, select
 
 from .database import engine
 from .models import Station, Waveform
-from .pipeline import ProcessingRequest, enqueue_waveform
+from .pipeline import ProcessingRequest, enqueue_waveform, register_pick_listener
 from .storage import persist_waveform_bytes
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,7 @@ _worker_task: Optional[asyncio.Task] = None
 _stop_event = threading.Event()
 _sl_client = None
 _latest_frames: Dict[str, Dict[str, Any]] = {}
+_live_picks: Dict[int, list] = {}
 _status: Dict[str, Any] = {
     "running": False,
     "frames": 0,
@@ -49,6 +50,7 @@ async def start_live_stream(
     loop = asyncio.get_running_loop()
     _stop_event.clear()
     _latest_frames.clear()
+    _live_picks.clear()
     _status.update(
         {
             "running": True,
@@ -76,6 +78,7 @@ async def stop_live_stream() -> bool:
     _stop_event.set()
     _status["running"] = False
     _latest_frames.clear()
+    _live_picks.clear()
 
     if _sl_client:
         try:
@@ -111,7 +114,11 @@ def get_live_status() -> Dict[str, Any]:
 def get_latest_frame() -> Optional[Dict[str, Any]]:
     if not _latest_frames:
         return None
-    return {"channels": list(_latest_frames.values())}
+    frames = []
+    for entry in _latest_frames.values():
+        channel_picks = _picks_for_frame(entry)
+        frames.append({**entry, "picks": channel_picks})
+    return {"channels": frames}
 
 
 def _pump_traces(loop: asyncio.AbstractEventLoop, network: str, station: str, location: str, channel: str) -> None:
@@ -148,7 +155,7 @@ def _pump_traces(loop: asyncio.AbstractEventLoop, network: str, station: str, lo
                 except Exception:  # pragma: no cover - best effort shutdown
                     logger.exception("Failed to close SeedLink client during teardown")
         _stop_event.set()
-        _status["running"] = False
+    _status["running"] = False
 
 
 async def _consume_traces() -> None:
@@ -177,7 +184,9 @@ async def _consume_traces() -> None:
                 "channel": trace.stats.channel,
                 "start_time": str(trace.stats.starttime),
                 "sampling_rate": float(trace.stats.sampling_rate),
+                "station_id": getattr(trace.stats, "station_id", None),
                 "samples": reduced,
+                "step": step,
             }
         finally:
             _trace_queue.task_done()
@@ -201,6 +210,9 @@ async def _handle_trace(trace) -> None:
             session.commit()
             session.refresh(station)
 
+        # expose station id to downstream consumers for pick mapping
+        trace.stats.station_id = station.id
+
         buffer = io.BytesIO()
         trace.write(buffer, format="MSEED")
         file_path, received_at = persist_waveform_bytes(trace.stats.station, buffer.getvalue())
@@ -222,3 +234,59 @@ async def _handle_trace(trace) -> None:
                 channel=str(getattr(trace.stats, "channel", "")),
             )
         )
+
+
+def _record_live_picks(station_id: int, picks) -> None:
+    """Store recent picks for a station for overlay on live frames."""
+
+    existing = _live_picks.setdefault(station_id, [])
+    existing.extend(
+        {
+            "phase_type": p.phase_type,
+            "pick_time": p.pick_time,
+            "quality": p.quality,
+        }
+        for p in picks
+    )
+    # keep the list bounded to the most recent 50 picks
+    if len(existing) > 50:
+        _live_picks[station_id] = existing[-50:]
+
+
+def _picks_for_frame(entry: Dict[str, Any]) -> list:
+    station_id = entry.get("station_id")
+    if not station_id or station_id not in _live_picks:
+        return []
+
+    try:
+        start_time = dt.datetime.fromisoformat(str(entry.get("start_time")))
+    except Exception:
+        return []
+
+    samples = entry.get("samples") or []
+    sampling_rate = float(entry.get("sampling_rate") or 0) or 1.0
+    step = int(entry.get("step") or 1)
+    duration = len(samples) * step / sampling_rate
+    picks_for_station = _live_picks.get(station_id, [])
+    window_end = start_time + dt.timedelta(seconds=duration)
+    picks_in_window = []
+    for pick in picks_for_station:
+        pick_time = pick.get("pick_time")
+        if not pick_time or not (start_time <= pick_time <= window_end):
+            continue
+        offset_sec = (pick_time - start_time).total_seconds()
+        sample_idx = int(offset_sec * sampling_rate / step)
+        if 0 <= sample_idx < len(samples):
+            picks_in_window.append(
+                {
+                    "phase_type": pick.get("phase_type"),
+                    "quality": pick.get("quality"),
+                    "sample_index": sample_idx,
+                }
+            )
+
+    return picks_in_window
+
+
+# register to receive picker results for overlay
+register_pick_listener(_record_live_picks)

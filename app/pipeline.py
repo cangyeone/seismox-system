@@ -7,7 +7,7 @@ import datetime as dt
 import random
 from dataclasses import dataclass
 
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from sqlmodel import Session, select
 
@@ -30,10 +30,17 @@ class ProcessingRequest:
 
 waveform_queue: asyncio.Queue[ProcessingRequest] = asyncio.Queue()
 _station_buffers: Dict[int, Dict[str, object]] = {}
+_pick_listeners: List[Callable[[int, List[PhasePick]], None]] = []
 
 
 async def enqueue_waveform(request: ProcessingRequest) -> None:
     await waveform_queue.put(request)
+
+
+def register_pick_listener(listener: Callable[[int, List[PhasePick]], None]) -> None:
+    """Allow other modules (e.g., live visualization) to receive pick updates."""
+
+    _pick_listeners.append(listener)
 
 
 async def process_waveforms() -> None:
@@ -51,6 +58,7 @@ async def _handle_request(request: ProcessingRequest) -> None:
         _update_waveform_processed(request.waveform_id)
         return
 
+    _notify_pick_listeners(request.station_id, picks)
     event = _associate_event(request.station_id, picks)
     _attach_picks_to_event(event.id, picks)
     _update_waveform_processed(request.waveform_id)
@@ -130,6 +138,18 @@ def _buffer_and_pick(request: ProcessingRequest) -> List[PhasePick]:
             buf["start_time"] = (buf.get("start_time") or start_time) + dt.timedelta(seconds=10)
 
     return picks
+
+
+def _notify_pick_listeners(station_id: int, picks: List[PhasePick]) -> None:
+    if not _pick_listeners or not picks:
+        return
+
+    for listener in _pick_listeners:
+        try:
+            listener(station_id, picks)
+        except Exception:
+            # keep pipeline alive even if downstream listeners fail
+            continue
 
 
 def _convert_picker_results(

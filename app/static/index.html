@@ -291,6 +291,7 @@
           canvas.height = 180;
           const ctx = canvas.getContext('2d');
           const samples = ch.samples || [];
+          const picks = ch.picks || [];
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.strokeStyle = '#67e8f9';
           ctx.lineWidth = 1.5;
@@ -304,6 +305,22 @@
               if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
             });
             ctx.stroke();
+
+            // overlay phase picks
+            const phaseColors = { Pg: '#22c55e', Sg: '#eab308', Pn: '#6366f1', Sn: '#f43f5e' };
+            picks.forEach((p) => {
+              const x = (p.sample_index / Math.max(1, samples.length - 1)) * canvas.width;
+              const color = phaseColors[p.phase_type] || '#e5e7eb';
+              ctx.strokeStyle = color;
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(x, 0);
+              ctx.lineTo(x, canvas.height);
+              ctx.stroke();
+              ctx.fillStyle = color;
+              ctx.font = '11px sans-serif';
+              ctx.fillText(p.phase_type, x + 4, 14);
+            });
           }
           wrapper.appendChild(title);
           wrapper.appendChild(canvas);
