@@ -29,7 +29,7 @@ class ProcessingRequest:
 
 
 waveform_queue: asyncio.Queue[ProcessingRequest] = asyncio.Queue()
-_station_buffers: Dict[str, Dict[str, object]] = {}
+_station_buffers: Dict[int, Dict[str, object]] = {}
 
 
 async def enqueue_waveform(request: ProcessingRequest) -> None:
@@ -62,9 +62,16 @@ def _buffer_and_pick(request: ProcessingRequest) -> List[PhasePick]:
     if not request.samples or not request.sampling_rate:
         return _simulate_phase_picks(request)
 
-    key = f"{request.station_id}:{request.channel or 'UNK'}"
-    buffer_state = _station_buffers.setdefault(
-        key,
+    station_buf = _station_buffers.setdefault(
+        request.station_id,
+        {
+            "channels": {},
+        },
+    )
+
+    channels: Dict[str, Dict[str, object]] = station_buf["channels"]  # type: ignore[assignment]
+    chan_buf = channels.setdefault(
+        request.channel or "UNK",
         {
             "start_time": request.start_time or request.received_at,
             "sampling_rate": request.sampling_rate,
@@ -73,33 +80,54 @@ def _buffer_and_pick(request: ProcessingRequest) -> List[PhasePick]:
     )
 
     # reset sampling rate and base time if incoming stream changes
-    buffer_state["sampling_rate"] = request.sampling_rate
-    if not buffer_state.get("start_time"):
-        buffer_state["start_time"] = request.start_time or request.received_at
+    chan_buf["sampling_rate"] = request.sampling_rate
+    if not chan_buf.get("start_time"):
+        chan_buf["start_time"] = request.start_time or request.received_at
 
-    buffer_state["samples"].extend(request.samples)
+    chan_buf["samples"].extend(request.samples)
     picks: List[PhasePick] = []
-    block_len = int(buffer_state["sampling_rate"] * 10)
 
-    while len(buffer_state["samples"]) >= block_len:
-        start_time = buffer_state["start_time"] or request.received_at
-        block = buffer_state["samples"][:block_len]
-        picker_results = run_phase_picker(block, buffer_state["sampling_rate"])
+    # Use the smallest available channel length to ensure aligned three-component blocks
+    block_len = int(request.sampling_rate * 10)
+    while True:
+        if not channels:
+            break
+        min_len = min(len(buf["samples"]) for buf in channels.values())
+        if min_len < block_len:
+            break
+
+        # choose up to three channels deterministically
+        selected_names = sorted(channels.keys())[:3]
+        sample_matrix: List[List[float]] = []
+        start_times = []
+        for name in selected_names:
+            buf = channels[name]
+            start_times.append(buf.get("start_time") or request.received_at)
+            sample_matrix.append(buf["samples"][:block_len])
+
+        # pad/duplicate channels to reach three components
+        while len(sample_matrix) < 3:
+            sample_matrix.append(list(sample_matrix[0]))
+
+        start_time = min(start_times)
+        picker_results = run_phase_picker(sample_matrix, request.sampling_rate)
         if picker_results:
             picks.extend(
                 _convert_picker_results(
                     picker_results,
                     request.station_id,
-                    buffer_state["sampling_rate"],
+                    request.sampling_rate,
                     start_time,
                 )
             )
         else:
             picks.extend(_simulate_phase_picks(request, base_time=start_time))
 
-        # drop the processed block and advance buffer start time
-        buffer_state["samples"] = buffer_state["samples"][block_len:]
-        buffer_state["start_time"] = start_time + dt.timedelta(seconds=10)
+        # drop processed samples and advance start times per channel
+        for name in selected_names:
+            buf = channels[name]
+            buf["samples"] = buf["samples"][block_len:]
+            buf["start_time"] = (buf.get("start_time") or start_time) + dt.timedelta(seconds=10)
 
     return picks
 

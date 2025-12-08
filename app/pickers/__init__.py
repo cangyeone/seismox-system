@@ -28,11 +28,14 @@ def _load_model():
     return _model
 
 
-def run_phase_picker(samples: List[float], sampling_rate: float) -> List[Tuple[int, float, float]]:
-    """Run the TorchScript picker on a 10s block of samples.
+def run_phase_picker(
+    samples: List[List[float]], sampling_rate: float
+) -> List[Tuple[int, float, float]]:
+    """Run the TorchScript picker on a 10s block of **three-component** samples.
 
-    The picker expects a three-component input; when only one component is
-    available we duplicate it across channels. Returns tuples of
+    The bundled TorchScript model expects a shape of ``(batch, channels, N)`` with
+    exactly three components. The caller should pre-align channels and supply
+    them as ``[[ch1...], [ch2...], [ch3...]]``. Returns tuples of
     ``(phase_index, sample_index, confidence)``.
     """
 
@@ -41,13 +44,13 @@ def run_phase_picker(samples: List[float], sampling_rate: float) -> List[Tuple[i
         return []
 
     data = torch.tensor(samples, dtype=torch.float32)
-    if data.dim() == 1:
-        data = data.unsqueeze(0).repeat(3, 1)
-    elif data.dim() == 2 and data.shape[0] != 3:
-        # best effort reshape for unexpected layouts
-        data = data.transpose(0, 1)[:3].transpose(0, 1)
+    # Accept either (3, N) or (N, 3) and normalize to (1, 3, N)
+    if data.dim() == 2 and data.shape[0] != 3 and data.shape[1] == 3:
+        data = data.transpose(0, 1)
     if data.dim() == 2:
         data = data.unsqueeze(0)
+    elif data.dim() == 3 and data.shape[1] != 3 and data.shape[2] == 3:
+        data = data.transpose(1, 2)
 
     with torch.no_grad():
         result = model(data)
