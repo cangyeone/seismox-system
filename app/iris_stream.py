@@ -38,7 +38,7 @@ _status: Dict[str, Any] = {
 
 
 async def start_live_stream(
-    network: str = "IU", station: str = "ANMO", location: str = "00", channel: str = ""
+    network: str = "IU", station: str = "ANMO", location: str = "00", channel: str = "BHZ"
 ) -> bool:
     """Start a SeedLink streaming task and a consumer that feeds the processing pipeline."""
 
@@ -206,5 +206,9 @@ async def _handle_trace(trace) -> None:
                 station_id=station.id,
                 file_path=file_path,
                 received_at=received_at,
+                start_time=trace.stats.starttime.datetime,
+                samples=trace.data.tolist(),
+                sampling_rate=float(trace.stats.sampling_rate),
+                channel=str(getattr(trace.stats, "channel", "")),
             )
         )

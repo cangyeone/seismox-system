@@ -63,12 +63,16 @@ A runnable prototype for a regional real-time seismic catalog. The stack is stre
    - The “实时波形” card pulls a 5-minute plot via `/iris/waveform` so you can watch remote activity without pushing your own data yet.
 
 6. **Start the IRIS SeedLink real-time ingest**
-   - Click “启动实时流” in the dashboard, or call:
+   - Click “启动” in the dashboard SeedLink card (可自定义网络/台站/位置/通道)，或直接调用：
      ```bash
      curl -X POST "http://localhost:8000/iris/live/start?network=IU&station=ANMO&location=00&channel=BHZ"
      curl http://localhost:8000/iris/live/status
      ```
-   - The server uses `obspy.clients.seedlink.basic_client.Client` to read the stream, writes each trace as MiniSEED under `app/data/waveforms/`, registers stations automatically if they don’t exist, enqueues processing, and renders a live canvas trace on the dashboard. Stop with `POST /iris/live/stop`.
+   - The server uses `obspy.clients.seedlink.easyseedlink.create_client` with the on-data callback to read the stream, writes each trace as MiniSEED under `app/data/waveforms/`, registers stations automatically if they don’t exist, enqueues processing, and renders a live canvas trace on the dashboard. Stop with `POST /iris/live/stop`.
+
+7. **Use the bundled TorchScript拾取器**
+   - 将模型文件放在 `app/pickers/rnn.origdiff.pnsn.jit` 路径（`torch.jit.load` 可直接加载）。
+   - 后台会为每个台站/通道累计 10 秒样本后触发一次拾取，解析出 `[phase_idx, sample_idx, confidence]`，转换成 Pg/Sg/Pn/Sn 震相并入库；模型缺失时自动退回到模拟拾取。
 
 ## Design notes
 - **Processing pipeline**: an asyncio worker drains a queue of waveform processing requests. For each waveform it simulates Pg/Sg/Pn/Sn picks, derives an origin time, estimates a simple location around the reporting station, sets a magnitude, and persists everything to SQLite via SQLModel.

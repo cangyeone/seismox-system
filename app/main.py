@@ -178,7 +178,7 @@ async def iris_waveform(
 
 @app.post("/iris/live/start")
 async def iris_live_start(
-    network: str = "IU", station: str = "ANMO", location: str = "00", channel: str = ""
+    network: str = "IU", station: str = "ANMO", location: str = "00", channel: str = "BHZ"
 ) -> dict:
     started = await start_live_stream(network=network, station=station, location=location, channel=channel)
     status = get_live_status()

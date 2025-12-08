@@ -103,7 +103,11 @@
           <p class="muted">通过 ObsPy <code>SeedlinkClient</code> 拉取实时样本，写入 MiniSEED 并推入处理队列，同时在下方画布实时渲染。</p>
         </div>
         <div class="row">
-          <button id="seedlink-start">启动实时流</button>
+          <input id="seed-network" placeholder="网络" value="IU" style="width:90px;" />
+          <input id="seed-station" placeholder="台站" value="ANMO" style="width:90px;" />
+          <input id="seed-location" placeholder="位置" value="00" style="width:80px;" />
+          <input id="seed-channel" placeholder="通道" value="BHZ" style="width:80px;" />
+          <button id="seedlink-start">启动</button>
           <button id="seedlink-stop" class="secondary">停止</button>
         </div>
       </div>
@@ -218,7 +222,8 @@
       const res = await fetch('/iris/live/status');
       const data = await res.json();
       const statusEl = document.getElementById('seedlink-status');
-      statusEl.textContent = data.running ? `${data.network}.${data.station}.${data.channel} 运行中，已接收 ${data.frames} 段，最新 ${data.last_frame || ''}` : '未运行';
+      const selector = data.selectors ? ` | 订阅 ${data.selectors}` : '';
+      statusEl.textContent = data.running ? `${data.network}.${data.station}.${data.channel || ''}${selector} 运行中，已接收 ${data.frames} 段，最新 ${data.last_frame || ''}` : '未运行';
     }
 
     async function refreshLiveFrame() {
@@ -253,7 +258,14 @@
     document.getElementById('refresh-iris').onclick = async () => { await fetch('/stations/import/iris', { method: 'POST' }); await refreshStations(); await refreshIrisStations(); };
     document.getElementById('iris-station-select').onchange = () => refreshWaveform();
     document.getElementById('wf-refresh').onclick = () => refreshWaveform();
-    document.getElementById('seedlink-start').onclick = async () => { await fetch('/iris/live/start', { method: 'POST' }); await refreshSeedlinkStatus(); };
+    document.getElementById('seedlink-start').onclick = async () => {
+      const net = document.getElementById('seed-network').value || 'IU';
+      const sta = document.getElementById('seed-station').value || 'ANMO';
+      const loc = document.getElementById('seed-location').value || '';
+      const cha = document.getElementById('seed-channel').value || '';
+      await fetch(`/iris/live/start?network=${net}&station=${sta}&location=${loc}&channel=${cha}`, { method: 'POST' });
+      await refreshSeedlinkStatus();
+    };
     document.getElementById('seedlink-stop').onclick = async () => { await fetch('/iris/live/stop', { method: 'POST' }); await refreshSeedlinkStatus(); };
 
     async function boot() {
