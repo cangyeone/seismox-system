@@ -120,7 +120,14 @@ def _pump_traces(loop: asyncio.AbstractEventLoop, network: str, station: str, lo
 
     try:
         _sl_client = create_client(server_url="rtserve.iris.washington.edu", on_data=_on_trace)
-        _sl_client.select_stream(network, station, location, channel)
+        selectors = None
+        if location and channel:
+            selectors = f"{location}{channel}"
+        elif channel:
+            selectors = channel
+        elif location:
+            selectors = location
+        _sl_client.select_stream(network, station, selectors)
         _sl_client.run()
     except Exception as exc:  # pragma: no cover - protective logging
         logger.exception("SeedLink streaming failed: %s", exc)
