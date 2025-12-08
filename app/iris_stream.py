@@ -253,14 +253,36 @@ def _record_live_picks(station_id: int, picks) -> None:
         _live_picks[station_id] = existing[-50:]
 
 
+def _as_utc(dt_like: Any) -> Optional[dt.datetime]:
+    """Convert a datetime-ish object or string to a timezone-aware UTC datetime."""
+
+    if dt_like is None:
+        return None
+
+    if isinstance(dt_like, str):
+        # Handle common ISO8601 variants including trailing "Z"
+        cleaned = dt_like.replace("Z", "+00:00")
+        try:
+            parsed = dt.datetime.fromisoformat(cleaned)
+        except Exception:
+            return None
+    elif isinstance(dt_like, dt.datetime):
+        parsed = dt_like
+    else:
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed.astimezone(dt.timezone.utc)
+
+
 def _picks_for_frame(entry: Dict[str, Any]) -> list:
     station_id = entry.get("station_id")
     if not station_id or station_id not in _live_picks:
         return []
 
-    try:
-        start_time = dt.datetime.fromisoformat(str(entry.get("start_time")))
-    except Exception:
+    start_time = _as_utc(entry.get("start_time"))
+    if start_time is None:
         return []
 
     samples = entry.get("samples") or []
@@ -271,7 +293,7 @@ def _picks_for_frame(entry: Dict[str, Any]) -> list:
     window_end = start_time + dt.timedelta(seconds=duration)
     picks_in_window = []
     for pick in picks_for_station:
-        pick_time = pick.get("pick_time")
+        pick_time = _as_utc(pick.get("pick_time"))
         if not pick_time or not (start_time <= pick_time <= window_end):
             continue
         offset_sec = (pick_time - start_time).total_seconds()
