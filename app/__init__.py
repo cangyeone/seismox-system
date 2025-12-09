@@ -26,3 +26,8 @@ if not hasattr(_satypes, "UUID"):
         _satypes.UUID = _satypes.Uuid
     else:
         _satypes.UUID = _satypes.CHAR
+
+# Some SQLModel builds import ``Uuid`` directly; if it's missing (common on
+# SQLAlchemy 2.x), provide a CHAR-based fallback so imports succeed.
+if not hasattr(_satypes, "Uuid"):
+    _satypes.Uuid = _satypes.CHAR
