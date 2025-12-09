@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlalchemy.types as _satypes
+import sqlalchemy.engine.interfaces as _sainterfaces
 from sqlalchemy.orm import RelationshipProperty as _RelationshipProperty
 
 # SQLModel 0.0.16 expects SQLAlchemy to expose DOUBLE / Double and
@@ -39,3 +40,13 @@ if not hasattr(_satypes, "Uuid"):
 # raising ``TypeError`` when SQLAlchemy is older than 2.x.
 if not hasattr(_RelationshipProperty, "__class_getitem__"):
     _RelationshipProperty.__class_getitem__ = classmethod(lambda cls, _: cls)
+
+# SQLModel 0.0.16 imports private SQLAlchemy typing aliases that were removed
+# in SQLAlchemy 2.x (e.g., ``_CoreAnyExecuteParams`` / ``_CoreSingleExecuteParams``).
+# Provide lightweight stand-ins so those imports keep working when users have a
+# newer SQLAlchemy installed than the pinned 1.4.x version.
+if not hasattr(_sainterfaces, "_CoreAnyExecuteParams"):
+    _sainterfaces._CoreAnyExecuteParams = object
+
+if not hasattr(_sainterfaces, "_CoreSingleExecuteParams"):
+    _sainterfaces._CoreSingleExecuteParams = object
