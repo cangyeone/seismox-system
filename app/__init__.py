@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlalchemy.types as _satypes
 import sqlalchemy.engine.interfaces as _sainterfaces
+import sqlalchemy.engine.result as _saresult
 from sqlalchemy.orm import RelationshipProperty as _RelationshipProperty
 
 # SQLModel 0.0.16 expects SQLAlchemy to expose DOUBLE / Double and
@@ -50,3 +51,9 @@ if not hasattr(_sainterfaces, "_CoreAnyExecuteParams"):
 
 if not hasattr(_sainterfaces, "_CoreSingleExecuteParams"):
     _sainterfaces._CoreSingleExecuteParams = object
+
+# SQLModel 0.0.16 imports TupleResult from sqlalchemy.engine.result, which was
+# removed in newer SQLAlchemy releases. Re-export Result so the import keeps
+# working across versions.
+if not hasattr(_saresult, "TupleResult"):
+    _saresult.TupleResult = _saresult.Result
