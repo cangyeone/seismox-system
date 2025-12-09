@@ -30,7 +30,9 @@ class ProcessingRequest:
 
 waveform_queue: asyncio.Queue[ProcessingRequest] = asyncio.Queue()
 _station_buffers: Dict[int, Dict[str, object]] = {}
+_recent_picks: Dict[int, Dict[int, dt.datetime]] = {}
 _pick_listeners: List[Callable[[int, List[PhasePick]], None]] = []
+_DEDUP_WINDOW_SECONDS = 102
 
 
 async def enqueue_waveform(request: ProcessingRequest) -> None:
@@ -65,7 +67,7 @@ async def _handle_request(request: ProcessingRequest) -> None:
 
 
 def _buffer_and_pick(request: ProcessingRequest) -> List[PhasePick]:
-    """Accumulate per-station/channel buffers and run the neural picker every 10 seconds."""
+    """Accumulate per-station/channel buffers and run the neural picker every 102 seconds."""
 
     if not request.samples or not request.sampling_rate:
         return _simulate_phase_picks(request)
@@ -96,7 +98,9 @@ def _buffer_and_pick(request: ProcessingRequest) -> List[PhasePick]:
     picks: List[PhasePick] = []
 
     # Use the smallest available channel length to ensure aligned three-component blocks
-    block_len = int(request.sampling_rate * 10)
+    # Window is 102 seconds (e.g., 3 s of new data + 99 s of history)
+    block_len = int(request.sampling_rate * _DEDUP_WINDOW_SECONDS)
+    stride_len = max(1, len(request.samples)) if request.samples else block_len
     while True:
         if not channels:
             break
@@ -131,13 +135,35 @@ def _buffer_and_pick(request: ProcessingRequest) -> List[PhasePick]:
         else:
             picks.extend(_simulate_phase_picks(request, base_time=start_time))
 
-        # drop processed samples and advance start times per channel
+        # drop processed samples and advance start times per channel using the incoming stride
         for name in selected_names:
             buf = channels[name]
-            buf["samples"] = buf["samples"][block_len:]
-            buf["start_time"] = (buf.get("start_time") or start_time) + dt.timedelta(seconds=10)
+            drop_len = min(block_len, stride_len)
+            buf["samples"] = buf["samples"][drop_len:]
+            buf["start_time"] = (buf.get("start_time") or start_time) + dt.timedelta(
+                seconds=float(drop_len) / request.sampling_rate
+            )
+
+    if picks:
+        picks = _deduplicate_picks(request.station_id, picks)
 
     return picks
+
+
+def _deduplicate_picks(station_id: int, picks: List[PhasePick]) -> List[PhasePick]:
+    """Suppress duplicate phase picks within the 102-second picking window."""
+
+    station_recent = _recent_picks.setdefault(station_id, {})
+    filtered: List[PhasePick] = []
+    for pick in sorted(picks, key=lambda p: p.pick_time):
+        last = station_recent.get(pick.phase)
+        if last and pick.pick_time <= last + dt.timedelta(seconds=_DEDUP_WINDOW_SECONDS):
+            continue
+
+        station_recent[pick.phase] = pick.pick_time
+        filtered.append(pick)
+
+    return filtered
 
 
 def _notify_pick_listeners(station_id: int, picks: List[PhasePick]) -> None:
