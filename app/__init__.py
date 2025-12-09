@@ -13,3 +13,12 @@ if not hasattr(_satypes, "DOUBLE"):
 
 if not hasattr(_satypes, "DOUBLE_PRECISION"):
     _satypes.DOUBLE_PRECISION = _satypes.Float
+
+# SQLModel also imports UUID from sqlalchemy.types; newer SQLAlchemy versions
+# no longer expose it at that location. Re-export a compatible type so imports
+# keep working across versions.
+if not hasattr(_satypes, "UUID"):
+    if hasattr(_satypes, "Uuid"):
+        _satypes.UUID = _satypes.Uuid
+    else:
+        _satypes.UUID = _satypes.CHAR
