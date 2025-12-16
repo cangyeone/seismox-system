@@ -1,6 +1,6 @@
 
-<p align="center">
-  <img src="logo.png" alt="SeismoX System Logo" width="520"/>
+<p align="left">
+  <img src="logo2.png" alt="SeismoX System Logo"/>
 </p>
 
 
