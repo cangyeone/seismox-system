@@ -1,98 +1,177 @@
 # SeismoX System
 
-A runnable prototype for a regional real-time seismic catalog. The stack is streaming-first (Kafka/Flink-ready) but ships with a lightweight FastAPI service so you can exercise ingestion, detection, association, and catalog persistence in a single process. This revision refreshes all service modules (database, IRIS/SeedLink ingest, USGS polling, pipeline, storage, dashboard) so the documentation stays aligned with the current codebase.
+*A Unified System for Probabilistic Seismic Monitoring and Intelligent Waveform Processing*
 
-## What is implemented
-- Station management API (create/list/view) with geospatial metadata and status fields.
-- IRIS station auto-discovery/import to seed the catalog without manual typing.
-- Waveform ingestion endpoint that accepts base64 mseed payloads, persists them to local storage, and queues them for processing.
-- Background real-time pipeline that simulates Pg/Sg/Pn/Sn picking, performs simple association, assigns a location/magnitude, and records the picks and events.
-- Event and pick browsing APIs for lightweight web visualization and downstream integration.
-- Leaflet + OpenStreetMap 事件地图：仪表盘会把 `/events` 返回的目录投影到交互式底图上，点击点位查看时间、震级、经纬度。
-- Health endpoint exposing the live processing queue depth.
-- IRIS SeedLink live ingest using ObsPy, saving MiniSEED, feeding the processing queue, and rendering the stream on the dashboard.
+<p align="center">
+  <img src="logo.png" alt="SeismoX System Logo" width="520"/>
+</p>
+
+
+## Overview
+
+**SeismoX System** (also referred to as **SeismicX-System**) is an integrated research-to-production seismic monitoring platform that combines **deep learning**, **Bayesian inference**, and **real-time data streaming** for earthquake detection, association, location, and uncertainty-aware analysis.
+
+The system is designed to bridge the gap between **cutting-edge seismological research** and **operational seismic monitoring**, enabling reproducible scientific workflows while remaining scalable to real-time regional or national deployments.
+
+
+
+## Related Research and Publications
+
+SeismoX System is built upon and validated by a series of peer-reviewed and preprint research works covering **phase picking**, **earthquake location**, **focal mechanism determination**, and **uncertainty estimation** in seismology.
+
+### 1. Bayesian Earthquake Location with Neural Travel-Time Surrogates
+
+**Bayesian Earthquake Location with a Neural Travel-Time Surrogate:
+Fast, Robust, and Fully Probabilistic Inference in 3-D Media**
+
+* **Authors**: Jinqing Sun, Ziye Yu, Zemin Liu, Lu Li, Chunyu Liu, Wei Yang, Yuqi Cai
+* **arXiv**: arXiv:2512.06407
+* **Category**: physics.geo-ph
+* **Submitted**: 6 December 2025
+* **Comments**: 15 pages, 7 figures
+
+**Abstract (summary)**
+This work presents a fully probabilistic earthquake location framework that couples a deep-learning travel-time surrogate with Gibbs sampling. The surrogate is trained to satisfy the Eikonal equation and reproduces the full 3-D first-arrival travel-time field, eliminating expensive ray tracing. The framework enables fast, robust, and uncertainty-aware hypocenter estimation in complex 3-D media.
+
+**Relevance to SeismoX**
+This paper provides the theoretical foundation for the **probabilistic location module** in SeismoX System.
+
+
+### 2. Deep-Learning-Based Focal Mechanism Determination
+
+**A Deep-Learning-Based Framework for Focal Mechanism Determination and Its Application to the 2022 Luding Earthquake Sequence**
+
+* **Authors**: Ziye Yu, Yuqi Cai
+* **arXiv**: arXiv:2511.19185
+* **Category**: physics.geo-ph
+* **Submitted**: 24 November 2025
+* **Comments**: 11 pages, 7 figures
+
+**Abstract (summary)**
+This study develops an automated focal mechanism determination framework based on deep learning and P-wave first-motion polarities, enabling reliable mechanism solutions for small-to-moderate earthquakes (M ≤ 4.5). The framework is applied to the 2022 Luding earthquake sequence.
+
+**Relevance to SeismoX**
+This work supports the **automated focal-mechanism module** and downstream tectonic interpretation capabilities.
+
+---
+
+### 3. Nationwide Pg/Sg/Pn/Sn Phase Picking (Journal Article)
+
+**A Deep Learning Framework for Pg/Sg/Pn/Sn Phase Picking and Its Nationwide Implementation in Chinese Mainland**
+
+* **Journal**: *Journal of Geophysical Research: Machine Learning and Computation*
+* **Authors**: Ziye Yu *et al.*
+* **DOI**: 10.1029/2025JH000944
+* **Article ID**: JGR170175
+
+This paper presents a deep-learning framework for robust Pg/Sg/Pn/Sn phase picking and demonstrates its nationwide deployment.
+
+**Relevance to SeismoX**
+Forms the **core phase-picking engine** used by the SeismoX real-time pipeline.
+
+
+
+### 4. SeismicXM Foundation Model (SRL, Accepted)
+
+**SeismicXM: A Cross-Task Foundation Model for Single-Station Seismic Waveform Processing**
+
+* **Journal**: *Seismological Research Letters (SRL)*
+* **Status**: Accepted
+
+This work introduces **SeismicXM**, a foundation model supporting multiple seismic waveform tasks.
+
+**Relevance to SeismoX**
+Provides the conceptual basis for **cross-task, reusable deep models** integrated into the system.
+
+
+
+### 5. Uncertainty Estimation for Rayleigh Wave Dispersion
+
+**A Framework for Uncertainty Estimation in Seismology Data Processing with Application to Extract Rayleigh Wave Dispersion Curves from Noise Cross-correlation Functions**
+
+* **Authors**: Ziye Yu, Xin Liu
+* **arXiv**: arXiv:2503.20460
+* **DOI**: [https://doi.org/10.48550/arXiv.2503.20460](https://doi.org/10.48550/arXiv.2503.20460)
+* **Category**: physics.geo-ph
+
+This work proposes a probabilistic framework for uncertainty estimation in manually labeled seismic data and applies it to Rayleigh wave dispersion extraction from noise cross-correlation functions.
+
+**Relevance to SeismoX**
+Supports **uncertainty-aware inference and posterior modeling** across SeismoX workflows.
+
+---
+
+## System Description
+
+### What is SeismoX System?
+
+SeismoX System is a **runnable prototype for a regional real-time seismic catalog**, designed with a **streaming-first architecture** (Kafka/Flink-ready) while remaining usable as a **single-process FastAPI service** for research, testing, and demonstration.
+
+It supports ingestion, detection, association, location, storage, and visualization within a unified framework.
+
+## Implemented Features
+
+* Station management API with geospatial metadata and health status.
+* Automatic IRIS station discovery and import.
+* Waveform ingestion via Base64 MiniSEED payloads.
+* Asynchronous real-time processing pipeline:
+
+  * Pg/Sg/Pn/Sn phase picking
+  * Simple association
+  * Event location and magnitude estimation
+* Event and pick browsing APIs.
+* Leaflet + OpenStreetMap interactive event dashboard.
+* IRIS SeedLink real-time waveform ingest and visualization.
+* Health endpoint exposing live queue depth and service status.
+
 
 ## Quickstart
-1. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. **Run the API**
-   ```bash
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-   ```
-3. **Open the dashboard** at `http://localhost:8000/` for station 管理、USGS/IRIS 数据演示、波形可视化和目录浏览。API docs remain at `/docs`.
 
-### Minimal workflow example
-1. **Register a station**
-   ```bash
-   curl -X POST http://localhost:8000/stations \
-     -H "Content-Type: application/json" \
-     -d '{
-       "code": "ABC1",
-       "name": "Demo Station",
-       "latitude": 34.25,
-       "longitude": 108.95,
-       "elevation_m": 1200,
-       "status": "healthy"
-     }'
-   ```
-2. **Ingest a waveform** (example uses an empty payload placeholder)
-   ```bash
-   echo -n "" | base64 | \
-   xargs -I{} curl -X POST http://localhost:8000/waveforms/ingest \
-     -H "Content-Type: application/json" \
-     -d '{"station_code": "ABC1", "payload_base64": "{}"}'
-   ```
-   The background worker will queue picks, associate an event, and mark the waveform as processed.
-3. **List events and picks**
-   ```bash
-   curl http://localhost:8000/events
-   curl http://localhost:8000/picks
-   ```
+### Install Dependencies
 
-4. **(Optional) Import IRIS stations & start USGS demo feed** from the dashboard (or via API)
-   ```bash
-   curl -X POST "http://localhost:8000/stations/import/iris?network=IU&limit=8"
-   curl -X POST http://localhost:8000/usgs/start
-   curl http://localhost:8000/usgs/status
-   ```
-   The IRIS helper grabs FDSN station metadata (GeoCSV) and writes it into the local DB; the USGS feed pulls the official GeoJSON stream every 60s and materializes events + virtual picks for visualization.
+```bash
+pip install -r requirements.txt
+```
 
-5. **Preview live waveforms from IRIS**
-   - The dashboard dropdown auto-populates IU network stations via `/iris/stations`.
-   - The “实时波形” card pulls a 5-minute plot via `/iris/waveform` so you can watch remote activity without pushing your own data yet.
+### Run the API
 
-6. **Start the IRIS SeedLink real-time ingest**
-   - Click “启动” in the dashboard SeedLink card (可自定义网络/台站/位置/通道)，或直接调用：
-     ```bash
-     curl -X POST "http://localhost:8000/iris/live/start?network=IU&station=ANMO&location=00&channel=BHZ"
-     curl http://localhost:8000/iris/live/status
-     ```
-   - The server uses `obspy.clients.seedlink.easyseedlink.create_client` with the on-data callback to read the stream, writes each trace as MiniSEED under `app/data/waveforms/`, registers stations automatically if they don’t exist, enqueues processing, and renders **三分量**实时波形（每个通道各一个小画布）在仪表盘中。Stop with `POST /iris/live/stop`.
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-7. **Use the bundled TorchScript拾取器**
-   - 将模型文件放在 `app/pickers/rnn.origdiff.pnsn.jit` 路径（`torch.jit.load` 可直接加载）。
-   - 后台会为每个台站/通道累计 10 秒样本后触发一次拾取，解析出 `[phase_idx, sample_idx, confidence]`，转换成 Pg/Sg/Pn/Sn 震相并入库；模型缺失时自动退回到模拟拾取。
+### Open Dashboard
 
-## Design notes
-- **Processing pipeline**: an asyncio worker drains a queue of waveform processing requests. For each waveform it simulates Pg/Sg/Pn/Sn picks, derives an origin time, estimates a simple location around the reporting station, sets a magnitude, and persists everything to SQLite via SQLModel.
-- **Storage**: waveforms are written to `app/data/waveforms/` with timestamped filenames; catalog tables live in `app/data/catalog.db`.
-- **Extensibility**: replace `app/pipeline.py` logic with real picker/association/location calls while keeping the API surface stable. The pipeline functions are isolated so you can swap in Kafka/Flink producers and consumers as you scale.
-- **Resilience**: ingestion is synchronous but processing is async; health and queue depth are exposed at `/health`. FastAPI startup initializes the database and launches the worker task.
+Visit:
+`http://localhost:8000/`
 
-## API surface
-- `GET /health` – service health and queue size.
-- `POST /stations` – create station metadata.
-- `GET /stations` – list stations.
-- `GET /stations/{id}` – station details.
-- `POST /waveforms/ingest` – accept base64 mseed content, persist, enqueue processing.
-- `GET /events` – list events ordered by origin time.
-- `GET /events/{id}` – event detail with picks.
-- `GET /picks` – recent picks.
+API documentation is available at `/docs`.
 
-## Project status
-This is a functional single-node demo with stubbed detection/association/location. Integrate your own models or streaming fabric (Kafka + Flink/Spark) by replacing the logic in `app/pipeline.py` and wiring the ingestion endpoint to produce/consume from your chosen message bus.
+
+## Design Notes
+
+* **Processing Pipeline**: Async queue-based worker architecture.
+* **Storage**:
+
+  * Waveforms: `app/data/waveforms/`
+  * Catalog: `app/data/catalog.db` (SQLite)
+* **Extensibility**:
+
+  * Replace internal logic with real pickers, associators, or Kafka/Flink streaming backends.
+* **Resilience**:
+
+  * Async processing
+  * Health and queue metrics exposed via API.
+
+
+
+## Project Status
+
+SeismoX System is a **functional single-node demonstration platform** with stubbed association and location logic.
+It is intended as a **research-grade reference implementation** that can be scaled to production by integrating external streaming systems and high-fidelity seismic models.
+
 
 ## Contact
-Questions or collaboration: **caiyuqiming@163.com**
+
+For questions, collaboration, or integration inquiries:
+
+**[caiyuqiming@163.com](mailto:caiyuqiming@163.com)**
