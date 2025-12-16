@@ -1,10 +1,13 @@
-# SeismoX System
-
-*A Unified System for Probabilistic Seismic Monitoring and Intelligent Waveform Processing*
 
 <p align="center">
   <img src="logo.png" alt="SeismoX System Logo" width="520"/>
 </p>
+
+
+# SeismoX System
+
+*A Unified System for Probabilistic Seismic Monitoring and Intelligent Waveform Processing*
+
 
 
 ## Overview
