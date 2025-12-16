@@ -56,7 +56,7 @@ This study develops an automated focal mechanism determination framework based o
 **Relevance to SeismoX**
 This work supports the **automated focal-mechanism module** and downstream tectonic interpretation capabilities.
 
----
+
 
 ### 3. Nationwide Pg/Sg/Pn/Sn Phase Picking (Journal Article)
 
@@ -102,7 +102,7 @@ This work proposes a probabilistic framework for uncertainty estimation in manua
 **Relevance to SeismoX**
 Supports **uncertainty-aware inference and posterior modeling** across SeismoX workflows.
 
----
+
 
 ## System Description
 
